@@ -173,8 +173,12 @@ class Player {
     this.y = constrain(this.y, 0, height - this.r - 40);
   }
   show() {
-    fill(0, 102, 153); // 今はまだ青い四角（のちに信長に変えます！）
-    rect(this.x, this.y, this.r, this.r);
+    if (playerImg) {
+      image(playerImg, this.x, this.y, this.r, this.r);
+    } else {
+      fill(0, 102, 153);
+      rect(this.x, this.y, this.r, this.r);
+    }
   }
 }
 
