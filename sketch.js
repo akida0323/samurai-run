@@ -1,259 +1,230 @@
 let player;
-let arrows = [];
-let coins = []; 
-let petals = []; 
-let enemyNinjas = []; // 弓兵（忍）のリスト
-let stage = 1;
+let obstacles = [];
+let coins = [];
+let bgImg; // 背景画像をいれる変数
 let score = 0;
-let goalX = 10000; 
-let isGameOver = false;
-let isClear = false;
+let gameOver = false;
+let gameClear = false;
+let distance = 0; // 走った距離
+let goalDistance = 1000; // ゴール（安土城）までの距離（1000m）
 
-// 音用の変数
-let slashSound;
-let coinSound;
+function preload() {
+  // bg.jpg という名前の背景画像を読み込みます
+  bgImg = loadImage('bg.jpg');
+}
 
 function setup() {
-  createCanvas(800, 450);
-  
-  // 刀の「シュッ」
-  slashSound = new p5.Noise('white');
-  slashSound.amp(0);
-  slashSound.start();
-  
-  // 小判の「チャリン」（高いサイン波）
-  coinSound = new p5.Oscillator('triangle');
-  coinSound.amp(0);
-  coinSound.start();
-  
-  resetGame();
+  createCanvas(800, 400);
+  player = new Player();
 }
 
 function draw() {
-  if (stage % 2 === 1) {
-    background(10, 15, 40);
+  // 背景に画像を画面サイズ（横800、縦400）に合わせて表示
+  if (bgImg) {
+    image(bgImg, 0, 0, width, height);
   } else {
-    drawSunset();
+    background(220); // 画像がない場合の予備背景
   }
-  
-  if (isGameOver) {
-    showScreen("無念...", "再挑戦するには画面をタッチ");
-    return;
-  }
-  
-  if (isClear) {
-    if (petals.length < 100) {
-      for(let i=0; i<5; i++) petals.push(new Petal());
+
+  // 地面や火の粉をイメージした簡易的な演出
+  fill(50, 30, 20, 150);
+  rect(0, height - 40, width, 40);
+
+  if (!gameOver && !gameClear) {
+    distance += 1; // 距離を進める
+    
+    // ゴール判定
+    if (distance >= goalDistance) {
+      gameClear = true;
     }
-    drawPetals();
-    showScreen("天晴！", "お宝を手に入れた！ 次の幕へ");
-    return;
-  }
 
-  drawScenery();
-  
-  let treasure = drawTreasure(); 
-  if (treasure && dist(player.x, player.y, treasure.x, treasure.y) < 40) {
-    isClear = true;
-  }
+    player.update();
+    player.show();
 
-  player.update();
-  player.display();
+    // 障害物の管理
+    if (frameCount % 90 === 0) {
+      obstacles.push(new Obstacle());
+    }
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].update();
+      obstacles[i].show();
+      if (player.hits(obstacles[i])) {
+        gameOver = true;
+      }
+      if (obstacles[i].offscreen()) {
+        obstacles.splice(i, 1);
+      }
+    }
 
-  // 弓兵（忍）の描画
-  for (let i = enemyNinjas.length - 1; i >= 0; i--) {
-    enemyNinjas[i].display();
-    enemyNinjas[i].timer--;
-    if (enemyNinjas[i].timer < 0) enemyNinjas.splice(i, 1);
-  }
-
-  // 小判の生成
-  if (frameCount % 60 === 0 && !isClear) {
-    coins.push(new Coin());
-  }
-
-  for (let i = coins.length - 1; i >= 0; i--) {
-    coins[i].update();
-    coins[i].display();
-    if (dist(player.x, player.y, coins[i].x, coins[i].y) < 30) {
-      coins.splice(i, 1);
-      score += 50; 
-      playCoinSound(); // チャリン！
-    } else if (coins[i].x < 0) {
-      coins.splice(i, 1);
+    // コインの管理
+    if (frameCount % 120 === 0) {
+      coins.push(new Coin());
+    }
+    for (let i = coins.length - 1; i >= 0; i--) {
+      coins[i].update();
+      coins[i].show();
+      if (player.pickUp(coins[i])) {
+        score += 10;
+        coins.splice(i, 1);
+      } else if (coins[i].offscreen()) {
+        coins.splice(i, 1);
+      }
     }
   }
 
-  // 弓矢と弓兵の同時生成
-  if (frameCount % max(15, 60 - stage * 3) === 0 && !isClear) {
-    let arrowY = random(200, 330);
-    arrows.push(new Arrow(stage, arrowY));
-    enemyNinjas.push(new EnemyNinja(arrowY)); // 矢と同じ高さに忍が登場
-  }
-
-  for (let i = arrows.length - 1; i >= 0; i--) {
-    arrows[i].update();
-    arrows[i].display();
-    if (player.isAttacking && dist(player.x + 30, player.y, arrows[i].x, arrows[i].y) < 60) {
-      arrows.splice(i, 1);
-      score += 10;
-      continue;
-    }
-    if (dist(player.x, player.y, arrows[i].x, arrows[i].y) < 25) {
-      isGameOver = true;
-    }
-    if (arrows[i] && arrows[i].x < 0) arrows.splice(i, 1);
-  }
-
+  // UI表示（タイトルやスコア）
   drawUI();
-  drawButtons();
 }
 
-// 小判の音（高い音を短く鳴らす）
-function playCoinSound() {
-  coinSound.freq(1200);
-  coinSound.amp(0.3, 0.05);
-  setTimeout(() => {
-    coinSound.freq(1500); // 少し音程を上げてキラキラ感を出す
-    setTimeout(() => coinSound.amp(0, 0.1), 50);
-  }, 50);
-}
+function drawUI() {
+  // タイトル表示
+  textSize(32);
+  textAlign(LEFT);
+  fill(0);
+  stroke(255);
+  strokeWeight(4);
+  textFont('Georgia');
+  text("本能寺脱出！安土への道", 20, 50);
 
-function playSlashSound() {
-  slashSound.amp(0.3, 0.01);
-  setTimeout(() => slashSound.amp(0, 0.1), 100);
-}
+  // スコアと残り距離
+  textSize(20);
+  noStroke();
+  fill(255);
+  rect(width - 180, 20, 160, 60, 5);
+  fill(0);
+  text("金: " + score, width - 160, 45);
+  let remaining = max(0, goalDistance - distance);
+  text("安土まで: " + remaining + "m", width - 160, 70);
 
-// 敵の弓兵クラス
-class EnemyNinja {
-  constructor(y) {
-    this.x = width - 40;
-    this.y = y;
-    this.timer = 30; // 少しの間だけ表示
+  // ゲームオーバー画面
+  if (gameOver) {
+    textAlign(CENTER);
+    textSize(48);
+    fill(255, 0, 0);
+    text("無念！敵襲に倒る", width / 2, height / 2);
+    textSize(20);
+    fill(0);
+    text("画面クリックで再挑戦", width / 2, height / 2 + 50);
   }
-  display() {
-    push();
-    translate(this.x, this.y);
-    fill(20, 20, 20); // 黒装束
-    rect(-10, -15, 20, 30, 5);
-    fill(50); // 頭巾
-    ellipse(0, -20, 18, 18);
-    stroke(150); // 弓
-    noFill();
-    arc(-15, 0, 30, 40, -PI/2, PI/2);
-    pop();
-  }
-}
 
-// --- キーボード操作の追加 ---
-function keyPressed() {
-  if (key === ' ' || keyCode === UP_ARROW) {
-    player.jump();
-  }
-  if (key === 'f' || key === 'F' || key === 'Enter') {
-    player.attack();
+  // ゲームクリア画面
+  if (gameClear) {
+    textAlign(CENTER);
+    textSize(48);
+    fill(0, 200, 0);
+    text("祝！安土城へ帰還成る！", width / 2, height / 2);
+    textSize(20);
+    fill(0);
+    text("織田信長の歴史が守られた！", width / 2, height / 2 + 50);
   }
 }
 
 function mousePressed() {
-  if (isGameOver) { stage = 1; score = 0; resetGame(); }
-  else if (isClear) { stage++; resetGame(); }
-  else {
-    if (mouseX < width / 2) player.jump();
-    else player.attack();
+  if (gameOver || gameClear) {
+    resetGame();
+  } else {
+    player.jump();
   }
 }
 
-// (背景・他クラスは調整済みで継続)
-function drawSunset() {
-  for (let y = 0; y < 400; y++) {
-    let inter = map(y, 0, 400, 0, 1);
-    let c = lerpColor(color(255, 100, 0), color(255, 200, 100), inter);
-    stroke(c); line(0, y, width, y);
+function keyPressed() {
+  if (key === ' ') {
+    if (gameOver || gameClear) {
+      resetGame();
+    } else {
+      player.jump();
+    }
   }
 }
 
-function drawScenery() {
-  if(stage % 2 === 1) { fill(255, 255, 200, 200); ellipse(650, 80, 60, 60); }
-  fill(20, 25, 50, 150);
-  triangle(0, 350, 200, 150, 400, 350); triangle(300, 350, 550, 100, 800, 350);
-  fill(50, 40, 30); rect(0, 350, width, 100);
+function resetGame() {
+  gameOver = false;
+  gameClear = false;
+  distance = 0;
+  score = 0;
+  obstacles = [];
+  coins = [];
+  player = new Player();
 }
 
-function drawTreasure() {
-  let tX = width - (player.worldX - (goalX - 100));
-  if (tX < width + 100) {
-    let tY = 320;
-    push(); translate(tX, tY); fill(150, 100, 50); rect(-25, -20, 50, 40);
-    fill(255, 215, 0); rect(-5, -15, 10, 10); stroke(0); line(-25, -5, 25, -5); pop();
-    return { x: tX, y: tY };
+// 以下、プレイヤー・障害物・コインの基本クラス（裏側の仕組み）
+class Player {
+  constructor() {
+    this.r = 40;
+    this.x = 50;
+    this.y = height - this.r - 40;
+    this.vy = 0;
+    this.gravity = 0.6;
   }
-  return null;
+  jump() {
+    if (this.y === height - this.r - 40) {
+      this.vy = -13;
+    }
+  }
+  hits(obstacle) {
+    return collideRectRect(this.x, this.y, this.r, this.r, obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+  }
+  pickUp(coin) {
+    return collideRectCircle(this.x, this.y, this.r, this.r, coin.x, coin.y, coin.r * 2);
+  }
+  update() {
+    this.vy += this.gravity;
+    this.y += this.vy;
+    this.y = constrain(this.y, 0, height - this.r - 40);
+  }
+  show() {
+    fill(0, 102, 153); // 今はまだ青い四角（のちに信長に変えます！）
+    rect(this.x, this.y, this.r, this.r);
+  }
 }
 
-function drawButtons() {
-  textAlign(CENTER, CENTER); textSize(24);
-  fill(100, 100, 100, 150); ellipse(80, height - 70, 80, 80); fill(255); text("跳", 80, height - 70);
-  fill(200, 50, 50, 150); ellipse(width - 80, height - 70, 80, 80); fill(255); text("斬", width - 80, height - 70);
+class Obstacle {
+  constructor() {
+    this.w = 30;
+    this.h = 50;
+    this.x = width;
+    this.y = height - this.h - 40;
+    this.speed = 6;
+  }
+  update() {
+    this.x -= this.speed;
+  }
+  show() {
+    fill(255, 100, 0); // 障害物（火の粉や敵兵のイメージ）
+    rect(this.x, this.y, this.w, this.h);
+  }
+  offscreen() {
+    return this.x < -this.w;
+  }
 }
 
 class Coin {
-  constructor() { this.x = width; this.y = random(150, 280); }
-  update() { if(!isClear) this.x -= 5; }
-  display() { fill(255, 215, 0); stroke(200, 150, 0); ellipse(this.x, this.y, 15, 22); }
-}
-
-class Samurai {
   constructor() {
-    this.x = 100; this.y = 330; this.vy = 0; this.gravity = 0.8; this.jumpPower = -16;
-    this.worldX = 0; this.isAttacking = false; this.attackTimer = 0; this.animCount = 0;
+    this.r = 10;
+    this.x = width;
+    this.y = random(150, height - 100);
+    this.speed = 4;
   }
   update() {
-    if(isClear) return;
-    this.vy += this.gravity; this.y += this.vy;
-    if (this.y > 330) { this.y = 330; this.vy = 0; }
-    this.worldX += 5; this.animCount += 0.15;
-    if (this.isAttacking) { this.attackTimer--; if (this.attackTimer <= 0) this.isAttacking = false; }
+    this.x -= this.speed;
   }
-  display() {
-    push();
-    let bodyBob = (this.y === 330 && !isClear) ? sin(this.animCount * 2) * 2 : 0;
-    translate(this.x, this.y + bodyBob);
-    fill(20, 20, 40);
-    let legMove = (this.y === 330 && !isClear) ? sin(this.animCount * 2) * 15 : 0;
-    rect(-10 + legMove/2, 10, 12, 15); rect(-5 - legMove/2, 10, 12, 15);
-    fill(40, 80, 180); rotate(0.05); rect(-15, -20, 30, 35, 5);
-    push(); translate(0, -30 + bodyBob/2);
-    fill(255, 224, 189); ellipse(0, 0, 30, 32); fill(0); ellipse(8, -2, 3, 5);
-    fill(200, 0, 0); rect(-15, -10, 30, 5);
-    let ribbonSway = cos(this.animCount) * 10; triangle(-15, -8, -35, -15 + ribbonSway, -30, -5 + ribbonSway);
-    fill(0); beginShape(); vertex(-2, -15); vertex(5, -25); vertex(15, -20); vertex(8, -12); endShape(CLOSE);
-    pop();
-    if (this.isAttacking) { stroke(230, 230, 250); strokeWeight(4); noFill(); arc(25, 0, 90, 90, -PI/3, PI/4); }
-    else { fill(80); rect(5, 5, 35, 6); fill(150, 100, 50); rect(-5, 8, 12, 6); }
-    pop();
+  show() {
+    fill(255, 215, 0);
+    ellipse(this.x, this.y, this.r * 2);
   }
-  jump() { if (this.y === 330) this.vy = this.jumpPower; }
-  attack() { if(!this.isAttacking) { this.isAttacking = true; this.attackTimer = 12; playSlashSound(); } }
+  offscreen() {
+    return this.x < -this.r * 2;
+  }
 }
 
-class Arrow {
-  constructor(s, y) { this.x = width - 40; this.y = y; this.speed = 7 + (s * 1.5); }
-  update() { if(!isClear) this.x -= this.speed; }
-  display() { stroke(139, 69, 19); strokeWeight(2); line(this.x, this.y, this.x + 30, this.y); fill(200); noStroke(); triangle(this.x, this.y, this.x+8, this.y-4, this.x+8, this.y+4); }
+// 簡易当たり判定用関数
+function collideRectRect(x, y, w, h, x2, y2, w2, h2) {
+  return x + w >= x2 && x <= x2 + w2 && y + h >= y2 && y <= y2 + h2;
 }
-
-class Petal {
-  constructor() { this.x = random(width); this.y = random(-100, 0); this.size = random(5, 12); this.speed = random(2, 5); this.angle = random(TWO_PI); }
-  update() { this.y += this.speed; this.x += sin(this.angle) * 3; this.angle += 0.1; if (this.y > height) this.y = -10; }
-  display() { fill(255, 215, 0); noStroke(); ellipse(this.x, this.y, this.size, this.size); }
+function collideRectCircle(rx, ry, rw, rh, cx, cy, diameter) {
+  let testX = cx; let testY = cy;
+  if (cx < rx) testX = rx; else if (cx > rx + rw) testX = rx + rw;
+  if (cy < ry) testY = ry; else if (cy > ry + rh) testY = ry + rh;
+  let d = dist(cx, cy, testX, testY);
+  return d <= diameter / 2;
 }
-
-function drawPetals() { for (let p of petals) { p.update(); p.display(); } }
-function resetGame() { player = new Samurai(); arrows = []; coins = []; petals = []; enemyNinjas = []; isGameOver = false; isClear = false; }
-function drawUI() {
-  fill(0, 0, 0, 150); rect(10, 10, 250, 80, 10);
-  fill(255); textAlign(LEFT); textSize(18); text(`幕: 第 ${stage} 幕`, 25, 35); text(`宝まで: ${floor(max(0, goalX - player.worldX))}m`, 25, 60);
-  fill(255, 215, 0); text(`小判: ${score}`, 25, 85);
-}
-function showScreen(title, sub) { background(0, 0, 0, 150); fill(255, 50, 50); textAlign(CENTER); textSize(60); text(title, width / 2, height / 2); fill(255); textSize(20); text(sub, width / 2, height / 2 + 50); }
