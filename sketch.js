@@ -2,23 +2,19 @@ let player;
 let obstacles = [];
 let coins = [];
 let bgImg; 
-let playerImg; // 信長の画像用
+let playerImg; 
 let score = 0;
 let gameOver = false;
 let gameClear = false;
 let distance = 0; 
 let goalDistance = 1000; 
 
-// スマホ用ボタンの変数
+// ボタンの変数
 let jumpButton;
 let slashButton;
 
 function preload() {
-  // 背景画像を読み込みます
   bgImg = loadImage('bg.jpg');
-  
-  // ★重要★ 信長の画像（nobunaga.png）を読み込みます。
-  // まだGitHubに画像を上げていなくてもエラーで画面が消えないように対策を入れました！
   playerImg = loadImage('nobunaga.png', 
     () => { console.log("信長画像の読み込み成功！"); }, 
     () => { console.log("信長画像はまだありません（予備の四角を表示します）"); }
@@ -26,24 +22,42 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(800, 400);
+  // パソコンでもスマホでも画面に収まるように自動調整する設定
+  let canvasWidth = min(windowWidth, 800);
+  let canvasHeight = canvasWidth * 0.5; // 横長の比率を維持
+  let canvas = createCanvas(canvasWidth, canvasHeight);
+  canvas.parent('game-container'); // 画面の真ん中に配置するための設定
+
   player = new Player();
 
-  // --- 📱 スマホ・PC共通の「跳」「斬」ボタンの作成 ---
-  // 跳（ジャンプ）ボタン
+  // --- 📱 スマホ・PC共通ボタンの位置を画面サイズに合わせて調整 ---
+  // 跳（ジャンプ）ボタン：左下、信長と重ならない位置
   jumpButton = createButton('跳');
-  jumpButton.position(40, height - 90);
+  jumpButton.position(20, height - 110);
   styleButton(jumpButton, '#888888');
-  jumpButton.mousePressed(() => { handleJump(); });
+  // 反応を速くするため、クリックだけでなくタッチが始まった瞬間に動くように強化！
+  jumpButton.mousePressed(handleJump);
+  jumpButton.touchStarted(handleJump);
 
-  // 斬（攻撃）ボタン
+  // 斬（攻撃）ボタン：右下
   slashButton = createButton('斬');
-  slashButton.position(width - 120, height - 90);
+  slashButton.position(width - 100, height - 110);
   styleButton(slashButton, '#de3121');
-  slashButton.mousePressed(() => { handleSlash(); });
+  slashButton.mousePressed(handleSlash);
+  slashButton.touchStarted(handleSlash);
 }
 
-// ボタンの見た目をかっこよくする関数
+// 画面のサイズが途中で変わっても崩れないようにする魔法の命令
+function windowResized() {
+  let canvasWidth = min(windowWidth, 800);
+  let canvasHeight = canvasWidth * 0.5;
+  resizeCanvas(canvasWidth, canvasHeight);
+  
+  // ボタンの位置も画面に合わせて自動で引っ越し
+  jumpButton.position(20, height - 110);
+  slashButton.position(width - 100, height - 110);
+}
+
 function styleButton(btn, bgColor) {
   btn.size(80, 80);
   btn.style('background-color', bgColor);
@@ -52,10 +66,10 @@ function styleButton(btn, bgColor) {
   btn.style('font-weight', 'bold');
   btn.style('border-radius', '50%');
   btn.style('border', '2px solid #ffffff');
+  btn.style('user-select', 'none'); // 連打したときに文字が選択されないようにする設定
 }
 
 function draw() {
-  // 背景の表示
   if (bgImg) {
     image(bgImg, 0, 0, width, height);
   } else {
@@ -64,7 +78,7 @@ function draw() {
 
   // 地面（道）
   fill(50, 30, 20, 150);
-  rect(0, height - 40, width, 40);
+  rect(0, height - 30, width, 30);
 
   if (!gameOver && !gameClear) {
     distance += 1; 
@@ -84,12 +98,10 @@ function draw() {
       obstacles[i].update();
       obstacles[i].show();
       
-      // プレイヤーと敵がぶつかった時の判定
       if (player.hits(obstacles[i])) {
-        // もし信長が「斬（攻撃）」状態なら敵を倒せる、そうでなければゲームオーバー
         if (player.isSlashing) {
           obstacles.splice(i, 1);
-          score += 20; // 敵を倒したらボーナス
+          score += 20; 
         } else {
           gameOver = true;
         }
@@ -114,35 +126,32 @@ function draw() {
     }
   }
 
-  // UI表示（タイトル、スコア、リトライ判定など）
   drawUI();
 }
 
 function drawUI() {
-  textSize(32);
+  // タイトルの文字サイズも画面幅に合わせて少し小さく調整
+  textSize(width * 0.045);
   textAlign(LEFT);
   fill(0);
   stroke(255);
-  strokeWeight(4);
-  textFont('Georgia');
-  text("本能寺脱出！安土への道", 20, 50);
+  strokeWeight(3);
+  text("本能寺脱出！安土への道", 20, 40);
 
   // スコアと残り距離の枠
-  textSize(20);
+  textSize(16);
   noStroke();
   fill(255, 255, 255, 200);
-  rect(width - 180, 20, 160, 60, 5);
+  rect(width - 150, 15, 130, 55, 5);
   fill(0);
-  text("金: " + score, width - 160, 45);
+  text("金: " + score, width - 135, 35);
   let remaining = max(0, goalDistance - distance);
-  text("安土まで: " + remaining + "m", width - 160, 70);
+  text("安土まで: " + remaining + "m", width - 135, 60);
 
-  // ゲームオーバー画面
   if (gameOver) {
     showEndScreen("無念！敵襲に倒る", "画面またはボタンクリックで再挑戦", color(255, 0, 0));
   }
 
-  // ゲームクリア画面
   if (gameClear) {
     showEndScreen("祝！安土城へ帰還成る！", "織田信長の歴史が守られた！", color(0, 200, 0));
   }
@@ -150,18 +159,17 @@ function drawUI() {
 
 function showEndScreen(title, sub, txtColor) {
   textAlign(CENTER);
-  textSize(48);
+  textSize(width * 0.06);
   fill(txtColor);
   stroke(255);
   strokeWeight(4);
   text(title, width / 2, height / 2);
-  textSize(20);
+  textSize(16);
   noStroke();
   fill(0);
-  text(sub, width / 2, height / 2 + 50);
+  text(sub, width / 2, height / 2 + 40);
 }
 
-// 操作処理の共通化
 function handleJump() {
   if (gameOver || gameClear) {
     resetGame();
@@ -178,7 +186,6 @@ function handleSlash() {
   }
 }
 
-// PCのキーボード操作用（スペースでジャンプ、Xキーで斬る）
 function keyPressed() {
   if (key === ' ') {
     handleJump();
@@ -188,8 +195,7 @@ function keyPressed() {
 }
 
 function mousePressed() {
-  // ボタン以外の画面をクリックしたときのリトライ用
-  if (gameOver || gameClear) {
+  if ((gameOver || gameClear) && mouseY < height - 120) {
     resetGame();
   }
 }
@@ -207,34 +213,33 @@ function resetGame() {
 // --- キャラクターの仕組み ---
 class Player {
   constructor() {
-    this.r = 50; // 少し大きくしました
-    this.x = 80;
-    this.y = height - this.r - 40;
+    this.r = height * 0.12; // 画面の高さに合わせたサイズに変更
+    this.x = width * 0.25;  // ★初期位置を右にずらしてボタンと重ならないようにしました！
+    this.y = height - this.r - 30;
     this.vy = 0;
     this.gravity = 0.6;
-    this.isSlashing = false; // 斬撃中かどうかのフラグ
+    this.isSlashing = false; 
     this.slashTimer = 0;
   }
   
   jump() {
-    if (this.y === height - this.r - 40) {
-      this.vy = -13;
+    if (this.y === height - this.r - 30) {
+      this.vy = -12;
     }
   }
 
   slash() {
     if (!this.isSlashing) {
       this.isSlashing = true;
-      this.slashTimer = 15; // 15フレームの間、攻撃判定が出る
+      this.slashTimer = 12; 
     }
   }
 
   update() {
     this.vy += this.gravity;
     this.y += this.vy;
-    this.y = constrain(this.y, 0, height - this.r - 40);
+    this.y = constrain(this.y, 0, height - this.r - 30);
 
-    // 斬撃タイマーのカウントダウン
     if (this.isSlashing) {
       this.slashTimer--;
       if (this.slashTimer <= 0) {
@@ -244,17 +249,14 @@ class Player {
   }
 
   show() {
-    // 斬撃中はエフェクトを出す
     if (this.isSlashing) {
-      fill(255, 255, 255, 150);
-      arc(this.x + this.r, this.y + this.r/2, 80, 80, -PI/2, PI/2);
+      fill(255, 255, 255, 180);
+      arc(this.x + this.r, this.y + this.r/2, this.r * 1.5, this.r * 1.5, -PI/2, PI/2);
     }
 
-    // 信長（プレイヤー）の画像表示
     if (playerImg && playerImg.width > 0) {
       image(playerImg, this.x, this.y, this.r, this.r);
     } else {
-      // 画像がないときは青い四角（昨日の消えちゃった対策！）
       fill(0, 102, 153);
       rect(this.x, this.y, this.r, this.r);
     }
@@ -271,17 +273,17 @@ class Player {
 
 class Obstacle {
   constructor() {
-    this.w = 30;
-    this.h = 50;
+    this.w = width * 0.04;
+    this.h = height * 0.12;
     this.x = width;
-    this.y = height - this.h - 40;
-    this.speed = 6;
+    this.y = height - this.h - 30;
+    this.speed = width * 0.008; // 画面サイズに合わせた速度
   }
   update() {
     this.x -= this.speed;
   }
   show() {
-    fill(255, 100, 0); // 敵（明智軍の足軽や火の粉のイメージ）
+    fill(255, 100, 0); 
     rect(this.x, this.y, this.w, this.h);
   }
   offscreen() {
@@ -291,10 +293,10 @@ class Obstacle {
 
 class Coin {
   constructor() {
-    this.r = 10;
+    this.r = width * 0.015;
     this.x = width;
-    this.y = random(150, height - 100);
-    this.speed = 4;
+    this.y = random(height * 0.3, height - 80);
+    this.speed = width * 0.005;
   }
   update() {
     this.x -= this.speed;
@@ -308,7 +310,6 @@ class Coin {
   }
 }
 
-// 判定用関数
 function collideRectRect(x, y, w, h, x2, y2, w2, h2) {
   return x + w >= x2 && x <= x2 + w2 && y + h >= y2 && y <= y2 + h2;
 }
