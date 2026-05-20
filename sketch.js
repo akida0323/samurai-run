@@ -9,7 +9,6 @@ let gameClear = false;
 let distance = 0; 
 let goalDistance = 1000; 
 
-// ボタンの変数
 let jumpButton;
 let slashButton;
 
@@ -17,56 +16,65 @@ function preload() {
   bgImg = loadImage('bg.jpg');
   playerImg = loadImage('nobunaga.png', 
     () => { console.log("信長画像の読み込み成功！"); }, 
-    () => { console.log("信長画像はまだありません（予備の四角を表示します）"); }
+    () => { console.log("信長画像はまだありません"); }
   );
 }
 
 function setup() {
-  // パソコンでもスマホでも画面に収まるように自動調整する設定
-  let canvasWidth = min(windowWidth, 800);
-  let canvasHeight = canvasWidth * 0.5; // 横長の比率を維持
+  // パソコンでもスマホでも綺麗に収まるサイズ
+  let canvasWidth = min(windowWidth - 20, 800);
+  let canvasHeight = canvasWidth * 0.5; 
   let canvas = createCanvas(canvasWidth, canvasHeight);
-  canvas.parent('game-container'); // 画面の真ん中に配置するための設定
+  
+  // ゲームを画面の真ん中に寄せるためのちょっとした設定
+  canvas.style('display', 'block');
+  canvas.style('margin', '0 auto');
 
   player = new Player();
 
-  // --- 📱 スマホ・PC共通ボタンの位置を画面サイズに合わせて調整 ---
-  // 跳（ジャンプ）ボタン：左下、信長と重ならない位置
-  jumpButton = createButton('跳');
-  jumpButton.position(20, height - 110);
-  styleButton(jumpButton, '#888888');
-  // 反応を速くするため、クリックだけでなくタッチが始まった瞬間に動くように強化！
-  jumpButton.mousePressed(handleJump);
-  jumpButton.touchStarted(handleJump);
-
-  // 斬（攻撃）ボタン：右下
-  slashButton = createButton('斬');
-  slashButton.position(width - 100, height - 110);
-  styleButton(slashButton, '#de3121');
-  slashButton.mousePressed(handleSlash);
-  slashButton.touchStarted(handleSlash);
-}
-
-// 画面のサイズが途中で変わっても崩れないようにする魔法の命令
-function windowResized() {
-  let canvasWidth = min(windowWidth, 800);
-  let canvasHeight = canvasWidth * 0.5;
-  resizeCanvas(canvasWidth, canvasHeight);
+  // --- 📱 ボタンをゲーム画面の「真下」に完全に独立させて配置！ ---
+  // こうすることで、ゲーム画面の中の信長と絶対にかぶりません。
   
-  // ボタンの位置も画面に合わせて自動で引っ越し
-  jumpButton.position(20, height - 110);
-  slashButton.position(width - 100, height - 110);
+  // 跳（ジャンプ）ボタン
+  jumpButton = createButton('跳 (JUMP)');
+  styleButton(jumpButton, '#888888');
+  // 最速で反応させるため、あらゆるタッチ・クリックイベントを網羅！
+  jumpButton.elt.addEventListener('touchstart', (e) => { e.preventDefault(); handleJump(); }, {passive: false});
+  jumpButton.mousePressed(handleJump);
+
+  // 斬（攻撃）ボタン
+  slashButton = createButton('斬 (SLASH)');
+  styleButton(slashButton, '#de3121');
+  slashButton.elt.addEventListener('touchstart', (e) => { e.preventDefault(); handleSlash(); }, {passive: false});
+  slashButton.mousePressed(handleSlash);
+
+  // ボタンを横並びにするための入れ物（コンテナ）を自動で作る
+  let buttonContainer = createDiv('');
+  buttonContainer.style('display', 'flex');
+  buttonContainer.style('justify-content', 'space-between');
+  buttonContainer.style('max-width', '800px');
+  buttonContainer.style('margin', '15px auto 0');
+  buttonContainer.style('padding', '0 10px');
+  
+  // ボタンを入れ物の中に引っ越しさせる
+  jumpButton.parent(buttonContainer);
+  slashButton.parent(buttonContainer);
 }
 
 function styleButton(btn, bgColor) {
-  btn.size(80, 80);
+  // スマホで押しやすいように、横に少し広いクッションみたいな形にします
+  btn.style('width', '45%');
+  btn.style('height', '60px');
   btn.style('background-color', bgColor);
   btn.style('color', '#ffffff');
-  btn.style('font-size', '24px');
+  btn.style('font-size', '22px');
   btn.style('font-weight', 'bold');
-  btn.style('border-radius', '50%');
-  btn.style('border', '2px solid #ffffff');
-  btn.style('user-select', 'none'); // 連打したときに文字が選択されないようにする設定
+  btn.style('border-radius', '12px');
+  btn.style('border', 'none');
+  btn.style('box-shadow', '0 4px #666');
+  btn.style('user-select', 'none');
+  btn.style('-webkit-user-select', 'none');
+  btn.style('-webkit-touch-callout', 'none');
 }
 
 function draw() {
@@ -76,12 +84,12 @@ function draw() {
     background(220); 
   }
 
-  // 地面（道）
+  // 地面
   fill(50, 30, 20, 150);
   rect(0, height - 30, width, 30);
 
   if (!gameOver && !gameClear) {
-    distance += 1; 
+    distance += 1.5; // 少しだけ爽快感を出すためにスピードアップ！
     
     if (distance >= goalDistance) {
       gameClear = true;
@@ -90,8 +98,7 @@ function draw() {
     player.update();
     player.show();
 
-    // 障害物の管理
-    if (frameCount % 90 === 0) {
+    if (frameCount % 80 === 0) {
       obstacles.push(new Obstacle());
     }
     for (let i = obstacles.length - 1; i >= 0; i--) {
@@ -110,8 +117,7 @@ function draw() {
       }
     }
 
-    // コイン（金）の管理
-    if (frameCount % 120 === 0) {
+    if (frameCount % 100 === 0) {
       coins.push(new Coin());
     }
     for (let i = coins.length - 1; i >= 0; i--) {
@@ -130,26 +136,25 @@ function draw() {
 }
 
 function drawUI() {
-  // タイトルの文字サイズも画面幅に合わせて少し小さく調整
-  textSize(width * 0.045);
+  textSize(max(width * 0.045, 16));
   textAlign(LEFT);
   fill(0);
   stroke(255);
   strokeWeight(3);
-  text("本能寺脱出！安土への道", 20, 40);
+  text("本能寺脱出！安土への道", 15, 35);
 
-  // スコアと残り距離の枠
-  textSize(16);
+  // スコア表示
+  textSize(14);
   noStroke();
   fill(255, 255, 255, 200);
-  rect(width - 150, 15, 130, 55, 5);
+  rect(width - 135, 10, 120, 50, 5);
   fill(0);
-  text("金: " + score, width - 135, 35);
-  let remaining = max(0, goalDistance - distance);
-  text("安土まで: " + remaining + "m", width - 135, 60);
+  text("金: " + score, width - 120, 28);
+  let remaining = max(0, goalDistance - floor(distance));
+  text("安土まで: " + remaining + "m", width - 120, 48);
 
   if (gameOver) {
-    showEndScreen("無念！敵襲に倒る", "画面またはボタンクリックで再挑戦", color(255, 0, 0));
+    showEndScreen("無念！敵襲に倒る", "ボタンを押して再挑戦", color(255, 0, 0));
   }
 
   if (gameClear) {
@@ -159,15 +164,15 @@ function drawUI() {
 
 function showEndScreen(title, sub, txtColor) {
   textAlign(CENTER);
-  textSize(width * 0.06);
+  textSize(max(width * 0.06, 20));
   fill(txtColor);
   stroke(255);
   strokeWeight(4);
   text(title, width / 2, height / 2);
-  textSize(16);
+  textSize(14);
   noStroke();
   fill(0);
-  text(sub, width / 2, height / 2 + 40);
+  text(sub, width / 2, height / 2 + 35);
 }
 
 function handleJump() {
@@ -186,17 +191,12 @@ function handleSlash() {
   }
 }
 
+// PCのキーボードでも遊べます
 function keyPressed() {
-  if (key === ' ') {
+  if (key === ' ' || key === 'ArrowUp') {
     handleJump();
   } else if (key === 'x' || key === 'X' || key === 'Enter') {
     handleSlash();
-  }
-}
-
-function mousePressed() {
-  if ((gameOver || gameClear) && mouseY < height - 120) {
-    resetGame();
   }
 }
 
@@ -210,28 +210,27 @@ function resetGame() {
   player = new Player();
 }
 
-// --- キャラクターの仕組み ---
 class Player {
   constructor() {
-    this.r = height * 0.12; // 画面の高さに合わせたサイズに変更
-    this.x = width * 0.25;  // ★初期位置を右にずらしてボタンと重ならないようにしました！
+    this.r = height * 0.15; 
+    this.x = width * 0.15;  // 完全に独立したので、信長を少し左に戻して走るスペースを広く確保
     this.y = height - this.r - 30;
     this.vy = 0;
-    this.gravity = 0.6;
+    this.gravity = 0.7; // ズバッと着地するように少し重力を強化
     this.isSlashing = false; 
     this.slashTimer = 0;
   }
   
   jump() {
     if (this.y === height - this.r - 30) {
-      this.vy = -12;
+      this.vy = -14;
     }
   }
 
   slash() {
     if (!this.isSlashing) {
       this.isSlashing = true;
-      this.slashTimer = 12; 
+      this.slashTimer = 10; 
     }
   }
 
@@ -250,8 +249,9 @@ class Player {
 
   show() {
     if (this.isSlashing) {
-      fill(255, 255, 255, 180);
-      arc(this.x + this.r, this.y + this.r/2, this.r * 1.5, this.r * 1.5, -PI/2, PI/2);
+      fill(255, 255, 255, 200);
+      // 斬撃エフェクト
+      arc(this.x + this.r, this.y + this.r/2, this.r * 1.6, this.r * 1.6, -PI/3, PI/3);
     }
 
     if (playerImg && playerImg.width > 0) {
@@ -274,10 +274,10 @@ class Player {
 class Obstacle {
   constructor() {
     this.w = width * 0.04;
-    this.h = height * 0.12;
+    this.h = height * 0.14;
     this.x = width;
     this.y = height - this.h - 30;
-    this.speed = width * 0.008; // 画面サイズに合わせた速度
+    this.speed = width * 0.01; 
   }
   update() {
     this.x -= this.speed;
@@ -293,10 +293,10 @@ class Obstacle {
 
 class Coin {
   constructor() {
-    this.r = width * 0.015;
+    this.r = width * 0.018;
     this.x = width;
     this.y = random(height * 0.3, height - 80);
-    this.speed = width * 0.005;
+    this.speed = width * 0.007;
   }
   update() {
     this.x -= this.speed;
