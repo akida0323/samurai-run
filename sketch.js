@@ -1,29 +1,28 @@
 let player;
 let obstacles = [];
 let coins = [];
-let bgImg; 
-let playerImg; 
-let enemyImg; // ★敵兵の画像用
+let bgImg, playerImg, enemyImg; 
+
+// 🔊 音声用の変数
+let sndJump, sndSlash, sndCoin;
+
 let score = 0;
 let gameOver = false;
 let gameClear = false;
 let distance = 0; 
-let goalDistance = 1000; 
+let goalDistance = 1200; // 少しだけ旅を長くしました！
 
-let jumpButton;
-let slashButton;
+let jumpButton, slashButton;
 
 function preload() {
   bgImg = loadImage('bg.jpg');
-  
-  // 信長の画像
   playerImg = loadImage('nobunaga.png');
+  enemyImg = loadImage('enemy.png');
   
-  // ★敵兵の画像（enemy.png）を読み込みます
-  enemyImg = loadImage('enemy.png',
-    () => { console.log("敵兵画像の読み込み成功！"); },
-    () => { console.log("敵兵画像はまだありません（予備の四角を表示します）"); }
-  );
+  // 効果音の読み込み（ファイルがなくてもエラーにならない安全設計）
+  sndJump = loadSound('jump.mp3', () => {}, () => { console.log("jump.mp3なし"); });
+  sndSlash = loadSound('slash.mp3', () => {}, () => { console.log("slash.mp3なし"); });
+  sndCoin = loadSound('coin.mp3', () => {}, () => { console.log("coin.mp3なし"); });
 }
 
 function setup() {
@@ -33,12 +32,11 @@ function setup() {
   
   player = new Player();
 
-  // 跳（ジャンプ）ボタン
+  // ボタン作成
   jumpButton = createButton('跳 (JUMP)');
-  styleButton(jumpButton, '#888888');
+  styleButton(jumpButton, '#555555');
   jumpButton.mousePressed(handleJump);
 
-  // 斬（攻撃）ボタン
   slashButton = createButton('斬 (SLASH)');
   styleButton(slashButton, '#de3121');
   slashButton.mousePressed(handleSlash);
@@ -56,13 +54,14 @@ function setup() {
 
 function styleButton(btn, bgColor) {
   btn.style('width', '45%');
-  btn.style('height', '60px');
+  btn.style('height', '65px');
   btn.style('background-color', bgColor);
   btn.style('color', '#ffffff');
-  btn.style('font-size', '20px');
+  btn.style('font-size', '22px');
   btn.style('font-weight', 'bold');
-  btn.style('border-radius', '12px');
+  btn.style('border-radius', '15px');
   btn.style('border', 'none');
+  btn.style('box-shadow', '0 5px #333');
   btn.style('user-select', 'none');
 }
 
@@ -74,11 +73,13 @@ function draw() {
   }
 
   // 地面
-  fill(50, 30, 20, 150);
+  fill(40, 25, 15, 180);
   rect(0, height - 30, width, 30);
 
   if (!gameOver && !gameClear) {
-    distance += 1.5; 
+    // スピードが徐々にアップする臨場感演出！
+    let currentSpeed = 1.5 + (distance * 0.001);
+    distance += currentSpeed; 
     
     if (distance >= goalDistance) {
       gameClear = true;
@@ -87,18 +88,28 @@ function draw() {
     player.update();
     player.show();
 
-    // 障害物（敵兵）の管理
-    if (frameCount % 80 === 0) {
-      obstacles.push(new Obstacle());
+    // ★① 敵の出現パターン強化（通常・高速・空中）
+    if (frameCount % 75 === 0) {
+      let rand = random(1);
+      if (rand < 0.5) {
+        obstacles.push(new Obstacle('normal')); // 普通の足軽
+      } else if (rand < 0.8) {
+        obstacles.push(new Obstacle('fast'));   // 突撃騎馬兵（速い！）
+      } else {
+        obstacles.push(new Obstacle('fly'));    // 飛び交う火の粉（高い！）
+      }
     }
+    
     for (let i = obstacles.length - 1; i >= 0; i--) {
       obstacles[i].update();
       obstacles[i].show();
       
       if (player.hits(obstacles[i])) {
-        if (player.isSlashing) {
+        // 空中の火の粉は斬れない仕様（ジャンプで避ける！）
+        if (player.isSlashing && obstacles[i].type !== 'fly') {
           obstacles.splice(i, 1);
           score += 20; 
+          if (sndSlash && sndSlash.isLoaded()) sndSlash.play(); // 🔊 ザシュッ！
         } else {
           gameOver = true;
         }
@@ -107,8 +118,8 @@ function draw() {
       }
     }
 
-    // コイン（金）の管理
-    if (frameCount % 100 === 0) {
+    // コインの管理
+    if (frameCount % 90 === 0) {
       coins.push(new Coin());
     }
     for (let i = coins.length - 1; i >= 0; i--) {
@@ -117,6 +128,7 @@ function draw() {
       if (player.pickUp(coins[i])) {
         score += 10;
         coins.splice(i, 1);
+        if (sndCoin && sndCoin.isLoaded()) sndCoin.play(); // 🔊 ピコーン！
       } else if (coins[i].offscreen()) {
         coins.splice(i, 1);
       }
@@ -129,47 +141,66 @@ function draw() {
 function drawUI() {
   textSize(max(width * 0.045, 16));
   textAlign(LEFT);
-  fill(0);
-  stroke(255);
-  strokeWeight(3);
+  fill(255);
+  stroke(0);
+  strokeWeight(4);
   text("本能寺脱出！安土への道", 15, 35);
 
-  textSize(14);
+  // UI枠
   noStroke();
-  fill(255, 255, 255, 200);
-  rect(width - 135, 10, 120, 50, 5);
-  fill(0);
-  text("金: " + score, width - 120, 28);
+  fill(0, 0, 0, 150);
+  rect(width - 145, 10, 130, 55, 8);
+  fill(255);
+  textSize(14);
+  text("金: " + score, width - 130, 30);
   let remaining = max(0, goalDistance - floor(distance));
-  text("安土まで: " + remaining + "m", width - 120, 48);
+  text("安土まで: " + remaining + "m", width - 130, 50);
 
+  // ★④ 豪華になったエンド画面
   if (gameOver) {
-    showEndScreen("無念！敵襲に倒る", "ボタンを押して再挑戦", color(255, 0, 0));
+    // 画面を赤く染める
+    fill(255, 0, 0, 50);
+    rect(0, 0, width, height);
+    
+    textAlign(CENTER);
+    textSize(max(width * 0.06, 24));
+    fill(255, 50, 50);
+    stroke(0);
+    strokeWeight(5);
+    text("【無念】 本能寺に散る...", width / 2, height / 2 - 20);
+    
+    textSize(16);
+    noStroke();
+    fill(255);
+    text("無念の炎が信長を包む。ボタンを押して再起せよ！", width / 2, height / 2 + 20);
   }
 
   if (gameClear) {
-    showEndScreen("祝！安土城へ帰還成る！", "織田信長の歴史が守られた！", color(0, 200, 0));
-  }
-}
+    // 画面を光らせる
+    fill(255, 215, 0, 40);
+    rect(0, 0, width, height);
 
-function showEndScreen(title, sub, txtColor) {
-  textAlign(CENTER);
-  textSize(max(width * 0.06, 20));
-  fill(txtColor);
-  stroke(255);
-  strokeWeight(4);
-  text(title, width / 2, height / 2);
-  textSize(14);
-  noStroke();
-  fill(0);
-  text(sub, width / 2, height / 2 + 35);
+    textAlign(CENTER);
+    textSize(max(width * 0.07, 28));
+    fill(50, 255, 50);
+    stroke(0);
+    strokeWeight(6);
+    text("🏆 祝・安土城へ帰還成る！ 🏆", width / 2, height / 2 - 20);
+    
+    textSize(18);
+    noStroke();
+    fill(255);
+    text("天下布武の歴史は、ここから再び始まる！", width / 2, height / 2 + 25);
+  }
 }
 
 function handleJump() {
   if (gameOver || gameClear) {
     resetGame();
   } else {
-    player.jump();
+    if (player.jump() && sndJump && sndJump.isLoaded()) {
+      sndJump.play(); // 🔊 ヒュン！
+    }
   }
 }
 
@@ -182,11 +213,8 @@ function handleSlash() {
 }
 
 function keyPressed() {
-  if (key === ' ' || key === 'ArrowUp') {
-    handleJump();
-  } else if (key === 'x' || key === 'X' || key === 'Enter') {
-    handleSlash();
-  }
+  if (key === ' ' || key === 'ArrowUp') handleJump();
+  else if (key === 'x' || key === 'X' || key === 'Enter') handleSlash();
 }
 
 function resetGame() {
@@ -201,11 +229,11 @@ function resetGame() {
 
 class Player {
   constructor() {
-    this.r = height * 0.15; 
+    this.r = height * 0.16; 
     this.x = width * 0.12;  
     this.y = height - this.r - 30;
     this.vy = 0;
-    this.gravity = 0.7; 
+    this.gravity = 0.75; 
     this.isSlashing = false; 
     this.slashTimer = 0;
   }
@@ -213,13 +241,15 @@ class Player {
   jump() {
     if (this.y === height - this.r - 30) {
       this.vy = -14;
+      return true;
     }
+    return false;
   }
 
   slash() {
     if (!this.isSlashing) {
       this.isSlashing = true;
-      this.slashTimer = 10; 
+      this.slashTimer = 12; 
     }
   }
 
@@ -237,9 +267,16 @@ class Player {
   }
 
   show() {
+    // ★② 超カッコいい三日月型の斬撃エフェクトに進化！
     if (this.isSlashing) {
-      fill(255, 255, 255, 200);
-      arc(this.x + this.r, this.y + this.r/2, this.r * 1.6, this.r * 1.6, -PI/3, PI/3);
+      stroke(200, 240, 255, 230);
+      strokeWeight(6);
+      noFill();
+      // 刀を大きく振った軌跡を描く
+      let angleStart = -PI / 3;
+      let angleEnd = PI / 3;
+      arc(this.x + this.r * 0.5, this.y + this.r * 0.5, this.r * 2.2, this.r * 2.2, angleStart, angleEnd);
+      noStroke();
     }
 
     if (playerImg && playerImg.width > 0) {
@@ -260,25 +297,55 @@ class Player {
 }
 
 class Obstacle {
-  constructor() {
-    this.w = height * 0.12; // 敵の横幅（少し正方形に近づけました）
-    this.h = height * 0.14; // 敵の高さ
+  constructor(type) {
+    this.type = type;
+    this.r = height * 0.14;
     this.x = width;
-    this.y = height - this.h - 30;
-    this.speed = width * 0.01; 
+    
+    if (this.type === 'normal') {
+      this.w = this.r * 0.9;
+      this.h = this.r;
+      this.y = height - this.h - 30;
+      this.speed = width * 0.01; 
+    } else if (this.type === 'fast') {
+      this.w = this.r * 1.3; // 騎馬兵なので横に長い
+      this.h = this.r * 1.1;
+      this.y = height - this.h - 30;
+      this.speed = width * 0.016; // 圧倒的スピード！
+    } else if (this.type === 'fly') {
+      this.w = width * 0.03;
+      this.h = width * 0.03;
+      this.y = random(height * 0.2, height * 0.5); // 高いところを飛ぶ火の粉
+      this.speed = width * 0.012;
+    }
   }
+  
   update() {
     this.x -= this.speed;
   }
+  
   show() {
-    // ★敵兵の画像があれば表示、なければオレンジの四角
-    if (enemyImg && enemyImg.width > 0) {
-      image(enemyImg, this.x, this.y, this.w, this.h);
-    } else {
-      fill(255, 100, 0); 
-      rect(this.x, this.y, this.w, this.h);
+    if (this.type === 'normal') {
+      if (enemyImg && enemyImg.width > 0) {
+        image(enemyImg, this.x, this.y, this.w, this.h);
+      } else {
+        fill(255, 100, 0); rect(this.x, this.y, this.w, this.h);
+      }
+    } else if (this.type === 'fast') {
+      // 騎馬兵（画像がないときは赤紫色の速い四角）
+      if (enemyImg && enemyImg.width > 0) {
+        // 画像を少し横長に引き伸ばしてスピード感を表現
+        image(enemyImg, this.x, this.y, this.w, this.h);
+      } else {
+        fill(150, 0, 100); rect(this.x, this.y, this.w, this.h);
+      }
+    } else if (this.type === 'fly') {
+      // 火の粉（燃え盛る赤い丸！）
+      fill(255, 50, 0);
+      ellipse(this.x + this.w/2, this.y + this.h/2, this.w * 1.5);
     }
   }
+  
   offscreen() {
     return this.x < -this.w;
   }
@@ -288,7 +355,6 @@ class Coin {
   constructor() {
     this.r = width * 0.018;
     this.x = width;
-    // ★コインの出現する高さを「ジャンプでしっかり届く範囲（画面の下の方）」に修正しました！
     this.y = random(height * 0.45, height - 100);
     this.speed = width * 0.007;
   }
