@@ -15,26 +15,10 @@ let goalDistance = 1200;
 let jumpButton, slashButton;
 
 function preload() {
-  // 画像の読み込み
+  // 画像の読み込み（これは今まで通り成功しているので安心です）
   bgImg = loadImage('bg.jpg');
   playerImg = loadImage('nobunaga.png');
   enemyImg = loadImage('enemy.png');
-  
-  // ★大改造：音の読み込みに失敗しても、ゲーム全体を絶対にストップさせない魔法の処理！
-  soundFormats('mp3', 'wav');
-  
-  sndJump = loadSound('jump.mp3', 
-    () => console.log("ジャンプ音 成功"), 
-    (err) => console.log("ジャンプ音なしで続行します")
-  );
-  sndSlash = loadSound('slash.mp3', 
-    () => console.log("斬撃音 成功"), 
-    (err) => console.log("斬撃音なしで続行します")
-  );
-  sndCoin = loadSound('coin.mp3', 
-    () => console.log("コイン音 成功"), 
-    (err) => console.log("コイン音なしで続行します")
-  );
 }
 
 function setup() {
@@ -42,6 +26,19 @@ function setup() {
   let canvasHeight = canvasWidth * 0.5; 
   createCanvas(canvasWidth, canvasHeight);
   
+  // 💡【Loading壁粉砕の核心】
+  // preloadの中で音を読み込むとエラーで画面が止まるため、
+  // ゲームが起動した「あと」から、裏側でこっそり音を読み込む方式（非同期）に大改造しました！
+  // これにより、音ファイルの有無に関わらず100%ゲームが即起動します。
+  try {
+    soundFormats('mp3');
+    sndJump = loadSound('jump.mp3', () => console.log("JUMP音OK"), () => {});
+    sndSlash = loadSound('slash.mp3', () => console.log("SLASH音OK"), () => {});
+    sndCoin = loadSound('coin.mp3', () => console.log("COIN音OK"), () => {});
+  } catch(e) {
+    console.log("音声ライブラリの読み込みをスキップしました");
+  }
+
   player = new Player();
 
   // ボタン作成
@@ -119,7 +116,6 @@ function draw() {
         if (player.isSlashing && obstacles[i].type !== 'fly') {
           obstacles.splice(i, 1);
           score += 20; 
-          // 音が正常にロードされている時だけ安全に鳴らす
           try { if (sndSlash && sndSlash.isLoaded()) sndSlash.play(); } catch(e){}
         } else {
           gameOver = true;
